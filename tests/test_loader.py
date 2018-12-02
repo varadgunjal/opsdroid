@@ -8,6 +8,7 @@ import unittest
 import unittest.mock as mock
 from types import ModuleType
 
+import pkg_resources
 from opsdroid.__main__ import configure_lang
 from opsdroid import loader as ld
 from opsdroid.loader import Loader
@@ -241,6 +242,7 @@ class TestLoader(unittest.TestCase):
         config["module_path"] = "os"
         config["name"] = "path"
         config["type"] = "system"
+        config["module"] = ""
 
         module = ld.Loader.import_module(config)
         self.assertIsInstance(module, ModuleType)
@@ -250,6 +252,7 @@ class TestLoader(unittest.TestCase):
         config["module_path"] = "os"
         config["name"] = ""
         config["type"] = "system"
+        config["module"] = ""
 
         module = ld.Loader.import_module(config)
         self.assertIsInstance(module, ModuleType)
@@ -259,9 +262,41 @@ class TestLoader(unittest.TestCase):
         config["module_path"] = "nonexistant"
         config["name"] = "module"
         config["type"] = "broken"
+        config["module"] = ""
 
         module = ld.Loader.import_module(config)
         self.assertEqual(module, None)
+
+    def test_import_module_from_path(self):
+        config = {}
+        config["module_path"] = ""
+        config["name"] = "module"
+        config["type"] = ""
+        config["module"] = "os.path"
+
+        module = ld.Loader.import_module(config)
+        self.assertIsInstance(module, ModuleType)
+
+    def test_import_module_from_entrypoint(self):
+
+        config = {}
+        config["module_path"] = ""
+        config["name"] = "myep"
+        config["type"] = ""
+        config["module"] = ""
+
+        distro = pkg_resources.Distribution()
+        ep = pkg_resources.EntryPoint("myep", "os.path", dist=distro)
+        config["entrypoint"] = ep
+
+        opsdroid, loader = self.setup()
+        loader.modules_directory = "."
+        modules = [{"name": "myep"}]
+
+        with mock.patch("opsdroid.loader.iter_entry_points") as mock_iter_entry_points:
+            mock_iter_entry_points.return_value = (ep,)
+            loaded = loader._load_modules("database", modules)
+            self.assertEqual(loaded[0]["config"]["name"], "myep")
 
     def test_load_config(self):
         opsdroid, loader = self.setup()
